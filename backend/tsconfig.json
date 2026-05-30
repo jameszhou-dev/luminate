@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "declaration": true
   },
-  "include": ["ios-agent/**/*", "routes/**/*"]
+  "include": ["ios-agent/**/*", "microsoft-agent/**/*", "routes/**/*"]
 }
