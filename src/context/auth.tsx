@@ -6,11 +6,9 @@ import {
   isSuccessResponse,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as SecureStore from 'expo-secure-store';
 
-// iOS client ID from GoogleService-Info.plist.
-// For Android idToken support, add your web client ID from Google Cloud Console:
-//   webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
 const IOS_CLIENT_ID =
   '504146003620-c2kvemq9rdgm55e31k1ik2ih82g0polj.apps.googleusercontent.com';
 
@@ -19,14 +17,16 @@ const AUTH_USER_KEY = 'auth_user';
 export type AuthUser = {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
   photo: string | null;
+  provider: 'google' | 'apple';
 };
 
 type AuthContextType = {
   user: AuthUser | null;
   isLoading: boolean;
-  signIn: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -40,15 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     GoogleSignin.configure({
       iosClientId: IOS_CLIENT_ID,
       scopes: [
-        // Contacts
         'https://www.googleapis.com/auth/contacts',
-        // Gmail
         'https://www.googleapis.com/auth/gmail.modify',
-        // Google Calendar (includes Meet links embedded in events)
         'https://www.googleapis.com/auth/calendar',
-        // Google Meet REST API
         'https://www.googleapis.com/auth/meetings.space.created',
-        // Google Tasks
         'https://www.googleapis.com/auth/tasks',
       ],
     });
@@ -57,37 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function restoreSession() {
     try {
-      // Immediately restore from cache so the UI is not blocked.
       const stored = await SecureStore.getItemAsync(AUTH_USER_KEY);
       if (stored) {
-        setUser(JSON.parse(stored) as AuthUser);
-      }
+        const parsed = JSON.parse(stored) as AuthUser;
+        setUser(parsed);
 
-      // Then attempt a silent refresh to get fresh tokens.
-      if (GoogleSignin.hasPreviousSignIn()) {
-        const response = await GoogleSignin.signInSilently();
-        if (isSuccessResponse(response)) {
-          const refreshed: AuthUser = {
-            id: response.data.user.id,
-            name: response.data.user.name,
-            email: response.data.user.email,
-            photo: response.data.user.photo,
-          };
-          setUser(refreshed);
-          await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(refreshed));
-        } else if (isNoSavedCredentialFoundResponse(response)) {
-          setUser(null);
-          await SecureStore.deleteItemAsync(AUTH_USER_KEY);
+        // For Google accounts, attempt a silent token refresh.
+        // Apple has no equivalent — the stored profile is sufficient.
+        if (parsed.provider === 'google' && GoogleSignin.hasPreviousSignIn()) {
+          const response = await GoogleSignin.signInSilently();
+          if (isSuccessResponse(response)) {
+            const refreshed: AuthUser = {
+              ...parsed,
+              name: response.data.user.name,
+              email: response.data.user.email,
+              photo: response.data.user.photo,
+            };
+            setUser(refreshed);
+            await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(refreshed));
+          } else if (isNoSavedCredentialFoundResponse(response)) {
+            setUser(null);
+            await SecureStore.deleteItemAsync(AUTH_USER_KEY);
+          }
         }
       }
     } catch {
-      // Silent sign-in failure is not fatal; user can sign in manually.
+      // Non-fatal — user can sign in manually.
     } finally {
       setIsLoading(false);
     }
   }
 
-  const signIn = useCallback(async () => {
+  const signInWithGoogle = useCallback(async () => {
     try {
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
@@ -97,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: response.data.user.name,
           email: response.data.user.email,
           photo: response.data.user.photo,
+          provider: 'google',
         };
         setUser(signedIn);
         await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
@@ -118,17 +115,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signInWithApple = useCallback(async () => {
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    // Apple only provides name and email on the very first sign-in.
+    // On subsequent sign-ins both are null, so we fall back to whatever
+    // was stored from the first sign-in.
+    const existing = await SecureStore.getItemAsync(AUTH_USER_KEY);
+    const prev: AuthUser | null = existing ? JSON.parse(existing) : null;
+
+    const signedIn: AuthUser = {
+      id: credential.user,
+      name:
+        credential.fullName?.givenName
+          ? [credential.fullName.givenName, credential.fullName.familyName]
+              .filter(Boolean)
+              .join(' ')
+          : prev?.id === credential.user
+            ? prev.name
+            : null,
+      email: credential.email ?? (prev?.id === credential.user ? prev.email : null),
+      photo: null, // Apple does not provide a profile photo
+      provider: 'apple',
+    };
+
+    setUser(signedIn);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
-      await GoogleSignin.signOut();
+      if (user?.provider === 'google') {
+        await GoogleSignin.signOut();
+      }
+      // Apple has no programmatic sign-out API.
     } finally {
       setUser(null);
       await SecureStore.deleteItemAsync(AUTH_USER_KEY);
     }
-  }, []);
+  }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, signInWithGoogle, signInWithApple, signOut }}>
       {children}
     </AuthContext.Provider>
   );

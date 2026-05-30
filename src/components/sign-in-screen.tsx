@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth';
@@ -9,15 +10,26 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
 export function SignInScreen() {
-  const { signIn } = useAuth();
+  const { signInWithGoogle, signInWithApple } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSignIn() {
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
+    }
+  }, []);
+
+  async function handleSignIn(provider: 'google' | 'apple') {
     setError(null);
     setIsSigningIn(true);
     try {
-      await signIn();
+      if (provider === 'apple') {
+        await signInWithApple();
+      } else {
+        await signInWithGoogle();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed. Please try again.');
     } finally {
@@ -41,11 +53,22 @@ export function SignInScreen() {
           {isSigningIn ? (
             <ActivityIndicator size="large" />
           ) : (
-            <GoogleSigninButton
-              size={GoogleSigninButton.Size.Wide}
-              color={GoogleSigninButton.Color.Dark}
-              onPress={handleSignIn}
-            />
+            <>
+              {appleAvailable && (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={4}
+                  style={styles.appleButton}
+                  onPress={() => handleSignIn('apple')}
+                />
+              )}
+              <GoogleSigninButton
+                size={GoogleSigninButton.Size.Wide}
+                color={GoogleSigninButton.Color.Dark}
+                onPress={() => handleSignIn('google')}
+              />
+            </>
           )}
           {error && (
             <ThemedText type="small" themeColor="textSecondary" style={styles.error}>
@@ -86,6 +109,10 @@ const styles = StyleSheet.create({
   actions: {
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  appleButton: {
+    width: 192,
+    height: 44,
   },
   error: {
     textAlign: 'center',

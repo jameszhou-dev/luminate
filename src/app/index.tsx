@@ -32,6 +32,7 @@ function getDevMenuHint() {
 export default function HomeScreen() {
   const { signOut } = useAuth();
 
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>

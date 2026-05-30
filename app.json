@@ -10,7 +10,9 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.jimmyzhouu.luminate",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "usesAppleSignIn": true,
+      "appleTeamId": "SAW8ZH24RA"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +23,13 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.jimmyzhouu.luminate",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,7 +48,21 @@
         }
       ],
       "@react-native-google-signin/google-signin",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar.",
+          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
