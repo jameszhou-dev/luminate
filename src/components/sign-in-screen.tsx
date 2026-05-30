@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,8 +9,10 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
+type Provider = 'google' | 'apple' | 'microsoft';
+
 export function SignInScreen() {
-  const { signInWithGoogle, signInWithApple } = useAuth();
+  const { signInWithGoogle, signInWithApple, signInWithMicrosoft } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,15 +23,13 @@ export function SignInScreen() {
     }
   }, []);
 
-  async function handleSignIn(provider: 'google' | 'apple') {
+  async function handleSignIn(provider: Provider) {
     setError(null);
     setIsSigningIn(true);
     try {
-      if (provider === 'apple') {
-        await signInWithApple();
-      } else {
-        await signInWithGoogle();
-      }
+      if (provider === 'apple') await signInWithApple();
+      else if (provider === 'microsoft') await signInWithMicrosoft();
+      else await signInWithGoogle();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed. Please try again.');
     } finally {
@@ -68,6 +68,14 @@ export function SignInScreen() {
                 color={GoogleSigninButton.Color.Dark}
                 onPress={() => handleSignIn('google')}
               />
+              <Pressable
+                style={({ pressed }) => [styles.microsoftButton, pressed && styles.microsoftButtonPressed]}
+                onPress={() => handleSignIn('microsoft')}
+              >
+                <ThemedText style={styles.microsoftButtonText}>
+                  Sign in with Microsoft
+                </ThemedText>
+              </Pressable>
             </>
           )}
           {error && (
@@ -113,6 +121,22 @@ const styles = StyleSheet.create({
   appleButton: {
     width: 192,
     height: 44,
+  },
+  microsoftButton: {
+    width: 192,
+    height: 44,
+    backgroundColor: '#0078d4',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  microsoftButtonPressed: {
+    backgroundColor: '#006cbf',
+  },
+  microsoftButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   error: {
     textAlign: 'center',

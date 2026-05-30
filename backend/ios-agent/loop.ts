@@ -1,5 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
-import { deviceToolDefinitions } from './device-tools.js';
+import { GoogleGenAI } from "@google/genai";
+import { deviceToolDefinitions } from "./tools.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -11,7 +11,7 @@ const MAX_TOOL_RESULT_CHARS = 4000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Message = { role: 'user' | 'model'; parts: any[] };
+type Message = { role: "user" | "model"; parts: any[] };
 
 export type DeviceCall = {
   tool: string;
@@ -25,14 +25,14 @@ export type DeviceToolResult = {
 
 // Final text response from the agent.
 export type AgentResponse = {
-  type: 'response';
+  type: "response";
   response: string;
   sessionId: string;
 };
 
 // The agent needs the device to execute one or more tools before it can continue.
 export type AgentDevicePending = {
-  type: 'device_pending';
+  type: "device_pending";
   calls: DeviceCall[];
   sessionId: string;
 };
@@ -50,11 +50,13 @@ type SessionData = {
 const sessions = new Map<string, SessionData>();
 
 function getSession(sessionId: string): SessionData {
-  return sessions.get(sessionId) ?? {
-    history: [],
-    toolRounds: 0,
-    seenCalls: new Set(),
-  };
+  return (
+    sessions.get(sessionId) ?? {
+      history: [],
+      toolRounds: 0,
+      seenCalls: new Set(),
+    }
+  );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -66,7 +68,10 @@ function toolCallKey(name: string, args: Record<string, unknown>): string {
 function truncate(value: unknown): string {
   const s = JSON.stringify(value);
   if (s.length <= MAX_TOOL_RESULT_CHARS) return s;
-  return s.slice(0, MAX_TOOL_RESULT_CHARS) + ` …[${s.length - MAX_TOOL_RESULT_CHARS} chars omitted]`;
+  return (
+    s.slice(0, MAX_TOOL_RESULT_CHARS) +
+    ` …[${s.length - MAX_TOOL_RESULT_CHARS} chars omitted]`
+  );
 }
 
 function trimHistory(history: Message[]): Message[] {
@@ -87,25 +92,37 @@ Today: ${new Date().toISOString()}.`;
 
 // ─── Core loop ───────────────────────────────────────────────────────────────
 
-async function runLoop(sessionId: string, session: SessionData): Promise<AgentResult> {
+async function runLoop(
+  sessionId: string,
+  session: SessionData,
+): Promise<AgentResult> {
   while (true) {
     if (session.toolRounds >= MAX_TOOL_ROUNDS) {
       session.history.push({
-        role: 'user',
-        parts: [{ text: 'You have used the maximum number of tool calls. Give the user a final response now using what you already know.' }],
+        role: "user",
+        parts: [
+          {
+            text: "You have used the maximum number of tool calls. Give the user a final response now using what you already know.",
+          },
+        ],
       });
       const final = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: "gemini-2.5-flash",
         contents: trimHistory(session.history),
-        config: { systemInstruction: buildSystemInstruction(), temperature: 0.2 },
+        config: {
+          systemInstruction: buildSystemInstruction(),
+          temperature: 0.2,
+        },
       });
-      const text = final.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+      const text =
+        final.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ??
+        "";
       sessions.set(sessionId, session);
-      return { type: 'response', response: text, sessionId };
+      return { type: "response", response: text, sessionId };
     }
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: "gemini-2.5-flash",
       contents: trimHistory(session.history),
       config: {
         systemInstruction: buildSystemInstruction(),
@@ -115,7 +132,7 @@ async function runLoop(sessionId: string, session: SessionData): Promise<AgentRe
     });
 
     const parts: any[] = result.candidates?.[0]?.content?.parts ?? [];
-    session.history.push({ role: 'model', parts });
+    session.history.push({ role: "model", parts });
 
     const calls = parts.filter((p) => p.functionCall);
 
@@ -123,8 +140,8 @@ async function runLoop(sessionId: string, session: SessionData): Promise<AgentRe
     if (calls.length === 0) {
       sessions.set(sessionId, session);
       return {
-        type: 'response',
-        response: parts.find((p: any) => p.text)?.text ?? '',
+        type: "response",
+        response: parts.find((p: any) => p.text)?.text ?? "",
         sessionId,
       };
     }
@@ -139,24 +156,36 @@ async function runLoop(sessionId: string, session: SessionData): Promise<AgentRe
 
     if (newCalls.length === 0) {
       session.history.push({
-        role: 'user',
-        parts: [{ text: 'You already called these tools with the same arguments. Respond to the user with what you know so far.' }],
+        role: "user",
+        parts: [
+          {
+            text: "You already called these tools with the same arguments. Respond to the user with what you know so far.",
+          },
+        ],
       });
       const recovery = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: "gemini-2.5-flash",
         contents: trimHistory(session.history),
-        config: { systemInstruction: buildSystemInstruction(), temperature: 0.2 },
+        config: {
+          systemInstruction: buildSystemInstruction(),
+          temperature: 0.2,
+        },
       });
-      const text = recovery.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text ?? '';
+      const text =
+        recovery.candidates?.[0]?.content?.parts?.find((p: any) => p.text)
+          ?.text ?? "";
       sessions.set(sessionId, session);
-      return { type: 'response', response: text, sessionId };
+      return { type: "response", response: text, sessionId };
     }
 
     // All tools execute on the device — pause and return them to the client.
     sessions.set(sessionId, session);
     return {
-      type: 'device_pending',
-      calls: newCalls.map((p) => ({ tool: p.functionCall.name, args: p.functionCall.args ?? {} })),
+      type: "device_pending",
+      calls: newCalls.map((p) => ({
+        tool: p.functionCall.name,
+        args: p.functionCall.args ?? {},
+      })),
       sessionId,
     };
   }
@@ -169,7 +198,7 @@ export async function runAgentTurn(
   userMessage: string,
 ): Promise<AgentResult> {
   const session = getSession(sessionId);
-  session.history.push({ role: 'user', parts: [{ text: userMessage }] });
+  session.history.push({ role: "user", parts: [{ text: userMessage }] });
   return runLoop(sessionId, session);
 }
 
@@ -187,7 +216,7 @@ export async function resumeWithDeviceResults(
     },
   }));
 
-  session.history.push({ role: 'user', parts: resultParts });
+  session.history.push({ role: "user", parts: resultParts });
   session.toolRounds++;
 
   return runLoop(sessionId, session);
