@@ -108,21 +108,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await SecureStore.getItemAsync(MS_REFRESH_TOKEN_KEY);
           if (refreshToken) {
             try {
-              const refreshed = await AuthSession.refreshAsync(
-                {
-                  clientId: MS_CLIENT_ID,
-                  refreshToken,
-                  redirectUri: AuthSession.makeRedirectUri({
-                    scheme: "luminate",
-                    path: "auth",
-                  }),
-                },
-                MS_DISCOVERY,
-              );
-              if (refreshed.refreshToken) {
+              const refreshRes = await fetch(MS_DISCOVERY.tokenEndpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                  client_id: MS_CLIENT_ID,
+                  grant_type: "refresh_token",
+                  refresh_token: refreshToken,
+                }).toString(),
+              });
+              if (!refreshRes.ok) throw new Error("refresh failed");
+              const refreshData = await refreshRes.json();
+              if (refreshData.refresh_token) {
                 await SecureStore.setItemAsync(
                   MS_REFRESH_TOKEN_KEY,
-                  refreshed.refreshToken,
+                  refreshData.refresh_token,
                 );
               }
             } catch {
@@ -235,18 +235,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const result = await request.promptAsync(MS_DISCOVERY);
     if (result.type !== "success") return;
 
-    const tokenResponse = await AuthSession.exchangeCodeAsync(
-      {
-        clientId: MS_CLIENT_ID,
+    const tokenRes = await fetch(MS_DISCOVERY.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: MS_CLIENT_ID,
+        grant_type: "authorization_code",
         code: result.params.code,
-        redirectUri,
-        codeVerifier: request.codeVerifier!,
-      },
-      MS_DISCOVERY,
-    );
+        redirect_uri: redirectUri,
+        code_verifier: request.codeVerifier!,
+      }).toString(),
+    });
+
+    if (!tokenRes.ok) {
+      const err = await tokenRes.json();
+      throw new Error(err.error_description ?? "Microsoft token exchange failed");
+    }
+
+    const tokenData = await tokenRes.json();
 
     const userInfo = await fetch("https://graph.microsoft.com/v1.0/me", {
-      headers: { Authorization: `Bearer ${tokenResponse.accessToken}` },
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
     }).then((r) => r.json());
 
     const signedIn: AuthUser = {
@@ -259,10 +268,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(signedIn);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
-    if (tokenResponse.refreshToken) {
+    if (tokenData.refresh_token) {
       await SecureStore.setItemAsync(
         MS_REFRESH_TOKEN_KEY,
-        tokenResponse.refreshToken,
+        tokenData.refresh_token,
       );
     }
   }, []);
