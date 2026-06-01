@@ -28,7 +28,8 @@
         "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS",
         "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR"
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -75,6 +76,12 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#208AEF"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for voice commands."
         }
       ],
       [

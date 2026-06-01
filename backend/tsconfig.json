@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "declaration": true
   },
-  "include": ["ios-agent/**/*", "microsoft-agent/**/*", "routes/**/*"]
+  "include": ["index.ts", "ios-agent/**/*", "google-agent/**/*", "microsoft-agent/**/*", "voice-agent/**/*", "routes/**/*"]
 }

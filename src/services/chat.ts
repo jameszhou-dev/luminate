@@ -278,3 +278,23 @@ export async function sendMessage(
 export async function clearSession(sessionId: string): Promise<void> {
   await fetch(`${BASE_URL}/chat/${sessionId}`, { method: 'DELETE' });
 }
+
+/**
+ * Execute a batch of device tool calls on behalf of the voice agent.
+ * Mirrors the logic inside sendMessage but returns raw results without
+ * making any HTTP calls — used by VoiceButton's onDevicePending callback.
+ */
+export async function executeDeviceToolsForVoice(
+  calls: { tool: string; args: Record<string, unknown> }[],
+): Promise<{ tool: string; result: unknown }[]> {
+  return Promise.all(
+    calls.map(async ({ tool, args }) => {
+      try {
+        const result = await executeDeviceTool(tool, args);
+        return { tool, result };
+      } catch (err) {
+        return { tool, result: { error: err instanceof Error ? err.message : String(err) } };
+      }
+    }),
+  );
+}

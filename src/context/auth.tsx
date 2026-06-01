@@ -5,6 +5,8 @@ import {
   isSuccessResponse,
   statusCodes,
 } from "@react-native-google-signin/google-signin";
+// MS access token key — stored alongside the refresh token so the voice agent can use it.
+const MS_ACCESS_TOKEN_KEY = "ms_access_token";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as AuthSession from "expo-auth-session";
 import * as SecureStore from "expo-secure-store";
@@ -48,6 +50,8 @@ export type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   isLoading: boolean;
+  /** Returns the current OAuth access token for Google or Microsoft, or null for Apple/iOS. */
+  getAccessToken: () => Promise<string | null>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
@@ -269,12 +273,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(signedIn);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
     if (tokenData.refresh_token) {
-      await SecureStore.setItemAsync(
-        MS_REFRESH_TOKEN_KEY,
-        tokenData.refresh_token,
-      );
+      await SecureStore.setItemAsync(MS_REFRESH_TOKEN_KEY, tokenData.refresh_token);
+    }
+    if (tokenData.access_token) {
+      await SecureStore.setItemAsync(MS_ACCESS_TOKEN_KEY, tokenData.access_token);
     }
   }, []);
+
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    if (!user) return null;
+    if (user.provider === 'google') {
+      const tokens = await GoogleSignin.getTokens();
+      return tokens.accessToken ?? null;
+    }
+    if (user.provider === 'microsoft') {
+      return SecureStore.getItemAsync(MS_ACCESS_TOKEN_KEY);
+    }
+    return null;
+  }, [user]);
 
   const signOut = useCallback(async () => {
     try {
@@ -296,6 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isLoading,
+        getAccessToken,
         signInWithGoogle,
         signInWithApple,
         signInWithMicrosoft,
