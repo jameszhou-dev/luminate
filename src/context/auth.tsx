@@ -18,6 +18,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { syncUser } from "@/services/user";
 
 // Required for expo-auth-session redirect handling on iOS/Android.
 WebBrowser.maybeCompleteAuthSession();
@@ -159,6 +160,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         setUser(signedIn);
         await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
+
+        const tokens = await GoogleSignin.getTokens();
+        syncUser({
+          userId: signedIn.id,
+          provider: "google",
+          name: signedIn.name,
+          email: signedIn.email,
+          photo: signedIn.photo,
+          accessToken: tokens.accessToken,
+          idToken: tokens.idToken ?? undefined,
+        }).catch(() => {});
       }
     } catch (error) {
       if (isErrorWithCode(error)) {
@@ -208,6 +220,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(signedIn);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
+
+    syncUser({
+      userId: signedIn.id,
+      provider: "apple",
+      name: signedIn.name,
+      email: signedIn.email,
+    }).catch(() => {});
   }, []);
 
   const signInWithMicrosoft = useCallback(async () => {
@@ -277,6 +296,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (tokenData.access_token) {
       await SecureStore.setItemAsync(MS_ACCESS_TOKEN_KEY, tokenData.access_token);
+    }
+
+    if (tokenData.access_token && tokenData.refresh_token) {
+      syncUser({
+        userId: signedIn.id,
+        provider: "microsoft",
+        name: signedIn.name,
+        email: signedIn.email,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+      }).catch(() => {});
     }
   }, []);
 
