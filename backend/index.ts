@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { randomUUID } from 'crypto';
 import chatRouter from './routes/chat.js';
 import usersRouter from './routes/users.js';
+import authRouter from './routes/auth.js';
 import {
   createVoiceSession,
   handleClientMessage,
@@ -16,6 +17,7 @@ const app = express();
 app.use(express.json());
 app.use(chatRouter);
 app.use(usersRouter);
+app.use(authRouter);
 
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/voice' });

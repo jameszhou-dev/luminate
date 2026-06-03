@@ -1,10 +1,11 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router";
+import { useColorScheme } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-import { SignInScreen } from '@/components/sign-in-screen';
-import { AuthProvider, useAuth } from '@/context/auth';
+import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import AppTabs from "@/components/app-tabs";
+import { SignInScreen } from "@/components/auth-screen";
+import { AuthProvider, useAuth } from "@/context/auth";
 
 function RootContent() {
   const { user, isLoading } = useAuth();
@@ -15,11 +16,13 @@ function RootContent() {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <AnimatedSplashOverlay />
-        <RootContent />
-      </AuthProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <AuthProvider>
+          <AnimatedSplashOverlay />
+          <RootContent />
+        </AuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -25,6 +25,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+
 const IOS_CLIENT_ID =
   "504146003620-c2kvemq9rdgm55e31k1ik2ih82g0polj.apps.googleusercontent.com";
 
@@ -39,13 +41,14 @@ const MS_DISCOVERY = {
 
 const AUTH_USER_KEY = "auth_user";
 const MS_REFRESH_TOKEN_KEY = "ms_refresh_token";
+const EMAIL_TOKEN_KEY = "email_token";
 
 export type AuthUser = {
   id: string;
   name: string | null;
   email: string | null;
   photo: string | null;
-  provider: "google" | "apple" | "microsoft";
+  provider: "google" | "apple" | "microsoft" | "email";
 };
 
 type AuthContextType = {
@@ -56,6 +59,8 @@ type AuthContextType = {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -310,6 +315,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    const res = await fetch(`${BASE_URL}/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Sign up failed. Please try again.");
+
+    const signedIn: AuthUser = {
+      id: data.userId,
+      name: null,
+      email: email.toLowerCase().trim(),
+      photo: null,
+      provider: "email",
+    };
+    setUser(signedIn);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
+    await SecureStore.setItemAsync(EMAIL_TOKEN_KEY, data.token);
+  }, []);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Sign in failed. Please try again.");
+
+    const signedIn: AuthUser = {
+      id: data.userId,
+      name: data.name ?? null,
+      email: email.toLowerCase().trim(),
+      photo: null,
+      provider: "email",
+    };
+    setUser(signedIn);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
+    await SecureStore.setItemAsync(EMAIL_TOKEN_KEY, data.token);
+  }, []);
+
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (!user) return null;
     if (user.provider === 'google') {
@@ -330,6 +377,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user?.provider === "microsoft") {
         await SecureStore.deleteItemAsync(MS_REFRESH_TOKEN_KEY);
       }
+      if (user?.provider === "email") {
+        await SecureStore.deleteItemAsync(EMAIL_TOKEN_KEY);
+      }
       // Apple has no programmatic sign-out API.
     } finally {
       setUser(null);
@@ -346,6 +396,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         signInWithApple,
         signInWithMicrosoft,
+        signUpWithEmail,
+        signInWithEmail,
         signOut,
       }}
     >
