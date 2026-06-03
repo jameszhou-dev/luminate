@@ -1,144 +1,100 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, useColorScheme, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useAuth } from '@/context/auth';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ThemedText } from "@/components/themed-text";
+import { Colors, MaxContentWidth, Spacing } from "@/constants/theme";
 
-type Provider = 'google' | 'apple' | 'microsoft';
+type Props = { onSignUp: () => void };
 
-export function SignInScreen() {
-  const { signInWithGoogle, signInWithApple, signInWithMicrosoft } = useAuth();
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (Platform.OS === 'ios') {
-      AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
-    }
-  }, []);
-
-  async function handleSignIn(provider: Provider) {
-    setError(null);
-    setIsSigningIn(true);
-    try {
-      if (provider === 'apple') await signInWithApple();
-      else if (provider === 'microsoft') await signInWithMicrosoft();
-      else await signInWithGoogle();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign in failed. Please try again.');
-    } finally {
-      setIsSigningIn(false);
-    }
-  }
+export function SignInScreen({ onSignUp }: Props) {
+  const scheme = useColorScheme() ?? "light";
+  const colors = Colors[scheme];
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.inner}>
         <View style={styles.hero}>
           <ThemedText type="title" style={styles.title}>
-            luminate
+            iluminate
           </ThemedText>
-          <ThemedText type="default" themeColor="textSecondary" style={styles.subtitle}>
-            Sign in to continue
+          <ThemedText
+            type="default"
+            themeColor="textSecondary"
+            style={styles.subtitle}
+          >
+            Your personal AI assistant
           </ThemedText>
         </View>
 
         <View style={styles.actions}>
-          {isSigningIn ? (
-            <ActivityIndicator size="large" />
-          ) : (
-            <>
-              {appleAvailable && (
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={4}
-                  style={styles.appleButton}
-                  onPress={() => handleSignIn('apple')}
-                />
-              )}
-              <GoogleSigninButton
-                size={GoogleSigninButton.Size.Wide}
-                color={GoogleSigninButton.Color.Dark}
-                onPress={() => handleSignIn('google')}
-              />
-              <Pressable
-                style={({ pressed }) => [styles.microsoftButton, pressed && styles.microsoftButtonPressed]}
-                onPress={() => handleSignIn('microsoft')}
-              >
-                <ThemedText style={styles.microsoftButtonText}>
-                  Sign in with Microsoft
-                </ThemedText>
-              </Pressable>
-            </>
-          )}
-          {error && (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.error}>
-              {error}
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              { backgroundColor: colors.text, opacity: pressed ? 0.8 : 1 },
+            ]}
+            onPress={onSignUp}
+          >
+            <ThemedText style={[styles.buttonText, { color: colors.background }]}>
+              Sign up
             </ThemedText>
-          )}
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              styles.buttonOutline,
+              { borderColor: colors.text, opacity: pressed ? 0.6 : 1 },
+            ]}
+            onPress={() => {}}
+          >
+            <ThemedText style={styles.buttonText}>Log in</ThemedText>
+          </Pressable>
         </View>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
   },
   inner: {
     flex: 1,
-    width: '100%',
+    width: "100%",
     maxWidth: MaxContentWidth,
+    alignSelf: "center",
     paddingHorizontal: Spacing.four,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     paddingBottom: Spacing.six,
   },
   hero: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: Spacing.two,
   },
   title: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   actions: {
-    alignItems: 'center',
     gap: Spacing.two,
   },
-  appleButton: {
-    width: 192,
-    height: 44,
+  button: {
+    height: 50,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  microsoftButton: {
-    width: 192,
-    height: 44,
-    backgroundColor: '#0078d4',
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
+  buttonOutline: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
   },
-  microsoftButtonPressed: {
-    backgroundColor: '#006cbf',
-  },
-  microsoftButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  error: {
-    textAlign: 'center',
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
