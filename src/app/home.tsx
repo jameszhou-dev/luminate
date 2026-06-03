@@ -13,9 +13,7 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <Pressable onPress={signOut} style={styles.signOut}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Sign out
-          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary"></ThemedText>
         </Pressable>
       </SafeAreaView>
     </ThemedView>

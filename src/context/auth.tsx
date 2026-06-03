@@ -59,7 +59,7 @@ type AuthContextType = {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string | null) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -315,18 +315,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+  const signUpWithEmail = useCallback(async (email: string, password: string, name: string | null) => {
     const res = await fetch(`${BASE_URL}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, name }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Sign up failed. Please try again.");
 
     const signedIn: AuthUser = {
       id: data.userId,
-      name: null,
+      name: name?.trim() || null,
       email: email.toLowerCase().trim(),
       photo: null,
       provider: "email",

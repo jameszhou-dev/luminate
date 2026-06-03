@@ -11,12 +11,13 @@ const TOKEN_EXPIRY = '90d';
 export async function signUpEmail(
   email: string,
   password: string,
+  name: string | null,
 ): Promise<{ token: string; userId: string }> {
   const normalised = email.toLowerCase().trim();
 
   const existing = await db
     .collection('users')
-    .where('services.email.email', '==', normalised)
+    .where('email', '==', normalised)
     .limit(1)
     .get();
 
@@ -28,13 +29,12 @@ export async function signUpEmail(
   const userId = randomUUID();
 
   await db.collection('users').doc(userId).set({
-    name: null,
+    name: name?.trim() || null,
     email: normalised,
+    passwordHash,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
-    services: {
-      email: { email: normalised, passwordHash },
-    },
+    services: {},
   });
 
   const token = jwt.sign({ userId, email: normalised }, JWT_SECRET, {
@@ -52,7 +52,7 @@ export async function signInEmail(
 
   const snapshot = await db
     .collection('users')
-    .where('services.email.email', '==', normalised)
+    .where('email', '==', normalised)
     .limit(1)
     .get();
 
@@ -62,16 +62,14 @@ export async function signInEmail(
 
   const doc = snapshot.docs[0];
   const data = doc.data();
-  const passwordHash: string = data.services?.email?.passwordHash ?? '';
+  const passwordHash: string = data.passwordHash ?? '';
 
   const valid = await bcrypt.compare(password, passwordHash);
   if (!valid) {
     throw new Error('Invalid email or password.');
   }
 
-  // update() with plain field names is safe — it never touches services.email.passwordHash
   await doc.ref.update({
-    email: normalised,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

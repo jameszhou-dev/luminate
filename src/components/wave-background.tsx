@@ -43,7 +43,7 @@ function buildWavePath(
 type Props = { color: string };
 
 export function WaveBackground({ color }: Props) {
-  const centerY = SCREEN_H * 0.45;
+  const centerY = SCREEN_H * 0.55;
 
   // Two wave layers — different amplitudes, speeds, and phase offsets for depth.
   const path1 = useMemo(() => buildWavePath(centerY, 24, 0), [centerY]);
