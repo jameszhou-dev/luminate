@@ -18,7 +18,8 @@ import {
   useEffect,
   useState,
 } from "react";
-import { syncUser } from "@/services/user";
+import { syncUser, updateUserPhoto, updateUserProfile, updateUserPassword, verifyUserPassword } from "@/services/user";
+import { generateAvatarUrl } from "@/utils/avatar";
 
 // Required for expo-auth-session redirect handling on iOS/Android.
 WebBrowser.maybeCompleteAuthSession();
@@ -54,13 +55,21 @@ export type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   isLoading: boolean;
+  linkedProviders: string[];
   /** Returns the current OAuth access token for Google or Microsoft, or null for Apple/iOS. */
   getAccessToken: () => Promise<string | null>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
+  linkWithGoogle: () => Promise<void>;
+  linkWithApple: () => Promise<void>;
+  linkWithMicrosoft: () => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string | null) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
+  updatePhoto: (photoUrl: string | null) => Promise<void>;
+  updateProfile: (data: { name?: string | null; email?: string | null }) => Promise<void>;
+  verifyPassword: (password: string) => Promise<boolean>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -71,6 +80,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
 
   useEffect(() => {
     GoogleSignin.configure({
@@ -92,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored) as AuthUser;
         setUser(parsed);
+        setLinkedProviders([parsed.provider]);
 
         if (parsed.provider === "google" && GoogleSignin.hasPreviousSignIn()) {
           const response = await GoogleSignin.signInSilently();
@@ -164,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           provider: "google",
         };
         setUser(signedIn);
+        setLinkedProviders(["google"]);
         await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
 
         const tokens = await GoogleSignin.getTokens();
@@ -208,22 +220,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const existing = await SecureStore.getItemAsync(AUTH_USER_KEY);
     const prev: AuthUser | null = existing ? JSON.parse(existing) : null;
 
+    const resolvedName = credential.fullName?.givenName
+      ? [credential.fullName.givenName, credential.fullName.familyName]
+          .filter(Boolean)
+          .join(" ")
+      : prev?.id === credential.user
+        ? prev.name
+        : null;
+
     const signedIn: AuthUser = {
       id: credential.user,
-      name: credential.fullName?.givenName
-        ? [credential.fullName.givenName, credential.fullName.familyName]
-            .filter(Boolean)
-            .join(" ")
-        : prev?.id === credential.user
-          ? prev.name
-          : null,
+      name: resolvedName,
       email:
         credential.email ?? (prev?.id === credential.user ? prev.email : null),
-      photo: null,
+      photo: prev?.id === credential.user ? prev.photo : generateAvatarUrl(resolvedName),
       provider: "apple",
     };
 
     setUser(signedIn);
+    setLinkedProviders(["apple"]);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
 
     syncUser({
@@ -286,15 +301,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     }).then((r) => r.json());
 
+    const msName = userInfo.displayName ?? null;
     const signedIn: AuthUser = {
       id: userInfo.id,
-      name: userInfo.displayName ?? null,
+      name: msName,
       email: userInfo.mail ?? userInfo.userPrincipalName ?? null,
-      photo: null,
+      photo: generateAvatarUrl(msName),
       provider: "microsoft",
     };
 
     setUser(signedIn);
+    setLinkedProviders(["microsoft"]);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
     if (tokenData.refresh_token) {
       await SecureStore.setItemAsync(MS_REFRESH_TOKEN_KEY, tokenData.refresh_token);
@@ -328,10 +345,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: data.userId,
       name: name?.trim() || null,
       email: email.toLowerCase().trim(),
-      photo: null,
+      photo: generateAvatarUrl(name),
       provider: "email",
     };
     setUser(signedIn);
+    setLinkedProviders(["email"]);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
     await SecureStore.setItemAsync(EMAIL_TOKEN_KEY, data.token);
   }, []);
@@ -349,10 +367,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: data.userId,
       name: data.name ?? null,
       email: email.toLowerCase().trim(),
-      photo: null,
+      photo: data.photo ?? generateAvatarUrl(data.name ?? null),
       provider: "email",
     };
     setUser(signedIn);
+    setLinkedProviders(["email"]);
     await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(signedIn));
     await SecureStore.setItemAsync(EMAIL_TOKEN_KEY, data.token);
   }, []);
@@ -369,6 +388,143 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   }, [user]);
 
+  const linkWithGoogle = useCallback(async () => {
+    if (!user) return;
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (isSuccessResponse(response)) {
+        const tokens = await GoogleSignin.getTokens();
+        await syncUser({
+          userId: user.id,
+          provider: "google",
+          name: response.data.user.name,
+          email: response.data.user.email,
+          photo: response.data.user.photo,
+          accessToken: tokens.accessToken,
+          idToken: tokens.idToken ?? undefined,
+        });
+        setLinkedProviders((prev) => [...new Set([...prev, "google"])]);
+      }
+    } catch (error) {
+      if (isErrorWithCode(error)) {
+        if (
+          error.code === statusCodes.SIGN_IN_CANCELLED ||
+          error.code === statusCodes.IN_PROGRESS
+        ) return;
+      }
+      throw error;
+    }
+  }, [user]);
+
+  const linkWithApple = useCallback(async () => {
+    if (!user) return;
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    await syncUser({
+      userId: user.id,
+      provider: "apple",
+      name: credential.fullName?.givenName
+        ? [credential.fullName.givenName, credential.fullName.familyName]
+            .filter(Boolean)
+            .join(" ")
+        : null,
+      email: credential.email ?? null,
+    });
+    setLinkedProviders((prev) => [...new Set([...prev, "apple"])]);
+  }, [user]);
+
+  const linkWithMicrosoft = useCallback(async () => {
+    if (!user) return;
+    const redirectUri = AuthSession.makeRedirectUri({
+      scheme: "luminate",
+      path: "auth",
+    });
+    const request = new AuthSession.AuthRequest({
+      clientId: MS_CLIENT_ID,
+      scopes: [
+        "openid", "profile", "email", "offline_access",
+        "Mail.Read", "Mail.Send", "Calendars.Read", "Calendars.ReadWrite",
+        "Chat.Read", "User.Read",
+      ],
+      redirectUri,
+      usePKCE: true,
+      prompt: AuthSession.Prompt.SelectAccount,
+    });
+    const result = await request.promptAsync(MS_DISCOVERY);
+    if (result.type !== "success") return;
+
+    const tokenRes = await fetch(MS_DISCOVERY.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: MS_CLIENT_ID,
+        grant_type: "authorization_code",
+        code: result.params.code,
+        redirect_uri: redirectUri,
+        code_verifier: request.codeVerifier!,
+      }).toString(),
+    });
+    if (!tokenRes.ok) {
+      const err = await tokenRes.json();
+      throw new Error(err.error_description ?? "Microsoft token exchange failed");
+    }
+    const tokenData = await tokenRes.json();
+    const userInfo = await fetch("https://graph.microsoft.com/v1.0/me", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    }).then((r) => r.json());
+
+    if (tokenData.refresh_token) {
+      await SecureStore.setItemAsync(MS_REFRESH_TOKEN_KEY, tokenData.refresh_token);
+    }
+    if (tokenData.access_token) {
+      await SecureStore.setItemAsync(MS_ACCESS_TOKEN_KEY, tokenData.access_token);
+    }
+    await syncUser({
+      userId: user.id,
+      provider: "microsoft",
+      name: userInfo.displayName ?? null,
+      email: userInfo.mail ?? userInfo.userPrincipalName ?? null,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+    });
+    setLinkedProviders((prev) => [...new Set([...prev, "microsoft"])]);
+  }, [user]);
+
+  const updatePhoto = useCallback(async (photoUrl: string | null) => {
+    if (!user) return;
+    const updated: AuthUser = { ...user, photo: photoUrl };
+    setUser(updated);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated));
+    await updateUserPhoto(user.id, photoUrl).catch(() => {});
+  }, [user]);
+
+  const updateProfile = useCallback(async (data: { name?: string | null; email?: string | null }) => {
+    if (!user) return;
+    const updated: AuthUser = {
+      ...user,
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+    };
+    setUser(updated);
+    await SecureStore.setItemAsync(AUTH_USER_KEY, JSON.stringify(updated));
+    await updateUserProfile(user.id, data).catch(() => {});
+  }, [user]);
+
+  const verifyPassword = useCallback(async (password: string): Promise<boolean> => {
+    if (!user) return false;
+    return verifyUserPassword(user.id, password);
+  }, [user]);
+
+  const updatePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    if (!user) return;
+    await updateUserPassword(user.id, currentPassword, newPassword);
+  }, [user]);
+
   const signOut = useCallback(async () => {
     try {
       if (user?.provider === "google") {
@@ -383,6 +539,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Apple has no programmatic sign-out API.
     } finally {
       setUser(null);
+      setLinkedProviders([]);
       await SecureStore.deleteItemAsync(AUTH_USER_KEY);
     }
   }, [user]);
@@ -392,12 +549,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isLoading,
+        linkedProviders,
         getAccessToken,
         signInWithGoogle,
         signInWithApple,
         signInWithMicrosoft,
+        linkWithGoogle,
+        linkWithApple,
+        linkWithMicrosoft,
         signUpWithEmail,
         signInWithEmail,
+        updatePhoto,
+        updateProfile,
+        verifyPassword,
+        updatePassword,
         signOut,
       }}
     >

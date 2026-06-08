@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.jimmyzhouu.luminate",
+      "bundleIdentifier": "dev.jimmyzhouu.luminate",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "appleTeamId": "SAW8ZH24RA"

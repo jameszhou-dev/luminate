@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { FieldValue } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { db } from './firestore.js';
+import { generateAvatarUrl } from './avatar.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
 const SALT_ROUNDS = 12;
@@ -31,6 +32,7 @@ export async function signUpEmail(
   await db.collection('users').doc(userId).set({
     name: name?.trim() || null,
     email: normalised,
+    photo: generateAvatarUrl(name),
     passwordHash,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -44,10 +46,31 @@ export async function signUpEmail(
   return { token, userId };
 }
 
+export async function verifyEmailPassword(userId: string, password: string): Promise<boolean> {
+  const doc = await db.collection('users').doc(userId).get();
+  if (!doc.exists) return false;
+  const data = doc.data()!;
+  return bcrypt.compare(password, data.passwordHash ?? '');
+}
+
+export async function updateEmailPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const doc = await db.collection('users').doc(userId).get();
+  if (!doc.exists) throw new Error('User not found.');
+  const data = doc.data()!;
+  const valid = await bcrypt.compare(currentPassword, data.passwordHash ?? '');
+  if (!valid) throw new Error('Current password is incorrect.');
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await doc.ref.update({ passwordHash: newHash, updatedAt: FieldValue.serverTimestamp() });
+}
+
 export async function signInEmail(
   email: string,
   password: string,
-): Promise<{ token: string; userId: string; name: string | null }> {
+): Promise<{ token: string; userId: string; name: string | null; photo: string | null }> {
   const normalised = email.toLowerCase().trim();
 
   const snapshot = await db
@@ -79,5 +102,5 @@ export async function signInEmail(
     { expiresIn: TOKEN_EXPIRY },
   );
 
-  return { token, userId: doc.id, name: data.name ?? null };
+  return { token, userId: doc.id, name: data.name ?? null, photo: data.photo ?? null };
 }

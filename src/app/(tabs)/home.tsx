@@ -27,7 +27,7 @@ export default function HomeScreen() {
       <SvgUri
         width={size}
         height={size}
-        color={colors.textSecondary}
+        color={colors.backgroundElement}
         uri={profileAssetUri}
       />
     );
