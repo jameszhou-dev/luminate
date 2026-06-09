@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -16,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Rect, SvgUri } from "react-native-svg";
 import { EditProfileSheet } from "../components/edit-profile-sheet";
+import { PickerSheet } from "../components/picker-sheet";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -72,7 +74,6 @@ function MicrosoftLogo({ size = 16 }: { size?: number }) {
 
 type LinkProvider = "google" | "apple" | "microsoft";
 
-
 export default function ProfileScreen() {
   const {
     user,
@@ -92,6 +93,18 @@ export default function ProfileScreen() {
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [refPersonalInfo, setRefPersonalInfo] = useState(true);
   const [refChatHistory, setRefChatHistory] = useState(true);
+  const [agentTone, setAgentTone] = useState<"casual" | "balanced" | "formal">(
+    "balanced",
+  );
+  const [agentVoice, setAgentVoice] = useState<
+    "concise" | "balanced" | "detailed"
+  >("balanced");
+  const [agentBehavior, setAgentBehavior] = useState<
+    "focused" | "balanced" | "creative"
+  >("balanced");
+  const [activePicker, setActivePicker] = useState<
+    "tone" | "voice" | "behavior" | null
+  >(null);
 
   useEffect(() => {
     if (Platform.OS === "ios") {
@@ -134,125 +147,70 @@ export default function ProfileScreen() {
             ← Back
           </ThemedText>
         </Pressable>
-
-        <View style={styles.userInfo}>
-          <Pressable
-            onPress={() => setEditSheetOpen(true)}
-            style={styles.avatarWrapper}
-          >
-            {user?.photo ? (
-              <Image
-                source={{ uri: user.photo }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            ) : (
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.userInfo}>
+            <Pressable
+              onPress={() => setEditSheetOpen(true)}
+              style={styles.avatarWrapper}
+            >
+              {user?.photo ? (
+                <Image
+                  source={{ uri: user.photo }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatar,
+                    styles.avatarFallback,
+                    { backgroundColor: colors.backgroundSelected },
+                  ]}
+                >
+                  <ThemedText type="default" style={styles.avatarInitial}>
+                    {user?.name?.[0]?.toUpperCase() ?? "?"}
+                  </ThemedText>
+                </View>
+              )}
               <View
                 style={[
-                  styles.avatar,
-                  styles.avatarFallback,
-                  { backgroundColor: colors.backgroundSelected },
+                  styles.editBadge,
+                  {
+                    backgroundColor: colors.backgroundElement,
+                    borderColor: colors.backgroundSelected,
+                  },
                 ]}
               >
-                <ThemedText type="default" style={styles.avatarInitial}>
-                  {user?.name?.[0]?.toUpperCase() ?? "?"}
-                </ThemedText>
+                <SvgUri
+                  width={14}
+                  height={14}
+                  color={colors.text}
+                  uri={editAssetUri}
+                />
               </View>
+            </Pressable>
+
+            {user?.name && (
+              <ThemedText type="default" style={styles.userName}>
+                {user.name}
+              </ThemedText>
             )}
-            <View
-              style={[
-                styles.editBadge,
-                {
-                  backgroundColor: colors.backgroundElement,
-                  borderColor: colors.backgroundSelected,
-                },
-              ]}
-            >
-              <SvgUri
-                width={14}
-                height={14}
-                color={colors.text}
-                uri={editAssetUri}
-              />
-            </View>
-          </Pressable>
+          </View>
 
-          {user?.name && (
-            <ThemedText type="default" style={styles.userName}>
-              {user.name}
-            </ThemedText>
-          )}
-        </View>
-
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          style={styles.sectionLabel}
-        >
-          LINKED ACCOUNTS
-        </ThemedText>
-
-        <View style={styles.providerList}>
-          {/* Google */}
-          <Pressable
-            style={[
-              styles.providerRow,
-              {
-                backgroundColor: colors.backgroundElement,
-                borderColor: colors.backgroundSelected,
-              },
-            ]}
-            onPress={() => handleLink("google")}
-            disabled={!!linking || isLinked("google")}
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.sectionLabel}
           >
-            <GoogleLogo />
-            <Text style={[styles.providerLabel, { color: colors.text }]}>
-              Google
-            </Text>
-            <View style={styles.providerStatus}>
-              {linking === "google" ? (
-                <ActivityIndicator size="small" color={colors.textSecondary} />
-              ) : isLinked("google") ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Linked
-                </ThemedText>
-              ) : (
-                <LinkIcon />
-              )}
-            </View>
-          </Pressable>
+            LINKED ACCOUNTS
+          </ThemedText>
 
-          {/* Microsoft */}
-          <Pressable
-            style={[
-              styles.providerRow,
-              {
-                backgroundColor: colors.backgroundElement,
-                borderColor: colors.backgroundSelected,
-              },
-            ]}
-            onPress={() => handleLink("microsoft")}
-            disabled={!!linking || isLinked("microsoft")}
-          >
-            <MicrosoftLogo />
-            <Text style={[styles.providerLabel, { color: colors.text }]}>
-              Microsoft
-            </Text>
-            <View style={styles.providerStatus}>
-              {linking === "microsoft" ? (
-                <ActivityIndicator size="small" color={colors.textSecondary} />
-              ) : isLinked("microsoft") ? (
-                <ThemedText type="small" themeColor="textSecondary">
-                  Linked
-                </ThemedText>
-              ) : (
-                <LinkIcon />
-              )}
-            </View>
-          </Pressable>
-
-          {/* Apple — iOS only */}
-          {appleAvailable && (
+          <View style={styles.providerList}>
+            {/* Google */}
             <Pressable
               style={[
                 styles.providerRow,
@@ -261,20 +219,20 @@ export default function ProfileScreen() {
                   borderColor: colors.backgroundSelected,
                 },
               ]}
-              onPress={() => handleLink("apple")}
-              disabled={!!linking || isLinked("apple")}
+              onPress={() => handleLink("google")}
+              disabled={!!linking || isLinked("google")}
             >
-              <SymbolView name="apple.logo" size={18} tintColor={colors.text} />
+              <GoogleLogo />
               <Text style={[styles.providerLabel, { color: colors.text }]}>
-                Apple
+                Google
               </Text>
               <View style={styles.providerStatus}>
-                {linking === "apple" ? (
+                {linking === "google" ? (
                   <ActivityIndicator
                     size="small"
                     color={colors.textSecondary}
                   />
-                ) : isLinked("apple") ? (
+                ) : isLinked("google") ? (
                   <ThemedText type="small" themeColor="textSecondary">
                     Linked
                   </ThemedText>
@@ -283,89 +241,351 @@ export default function ProfileScreen() {
                 )}
               </View>
             </Pressable>
-          )}
-        </View>
 
-        {error && (
+            {/* Microsoft */}
+            <Pressable
+              style={[
+                styles.providerRow,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+              onPress={() => handleLink("microsoft")}
+              disabled={!!linking || isLinked("microsoft")}
+            >
+              <MicrosoftLogo />
+              <Text style={[styles.providerLabel, { color: colors.text }]}>
+                Microsoft
+              </Text>
+              <View style={styles.providerStatus}>
+                {linking === "microsoft" ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.textSecondary}
+                  />
+                ) : isLinked("microsoft") ? (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Linked
+                  </ThemedText>
+                ) : (
+                  <LinkIcon />
+                )}
+              </View>
+            </Pressable>
+
+            {/* Apple — iOS only */}
+            {appleAvailable && (
+              <Pressable
+                style={[
+                  styles.providerRow,
+                  {
+                    backgroundColor: colors.backgroundElement,
+                    borderColor: colors.backgroundSelected,
+                  },
+                ]}
+                onPress={() => handleLink("apple")}
+                disabled={!!linking || isLinked("apple")}
+              >
+                <SymbolView
+                  name="apple.logo"
+                  size={18}
+                  tintColor={colors.text}
+                />
+                <Text style={[styles.providerLabel, { color: colors.text }]}>
+                  Apple
+                </Text>
+                <View style={styles.providerStatus}>
+                  {linking === "apple" ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textSecondary}
+                    />
+                  ) : isLinked("apple") ? (
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Linked
+                    </ThemedText>
+                  ) : (
+                    <LinkIcon />
+                  )}
+                </View>
+              </Pressable>
+            )}
+          </View>
+
+          {error && (
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.error}
+            >
+              {error}
+            </ThemedText>
+          )}
+
           <ThemedText
             type="small"
             themeColor="textSecondary"
-            style={styles.error}
+            style={styles.sectionLabel}
           >
-            {error}
+            AGENT SETTINGS
           </ThemedText>
-        )}
 
-        <ThemedText
-          type="small"
-          themeColor="textSecondary"
-          style={styles.sectionLabel}
-        >
-          MEMORY
-        </ThemedText>
+          <View style={styles.memoryList}>
+            <Pressable
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+              onPress={() => setActivePicker("tone")}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: colors.text }]}
+                >
+                  Tone
+                </Text>
+                <Text
+                  style={[styles.agentValue, { color: colors.textSecondary }]}
+                >
+                  {agentTone.charAt(0).toUpperCase() + agentTone.slice(1)}
+                </Text>
+                <Text style={[styles.chevron, { color: colors.textSecondary }]}>
+                  ›
+                </Text>
+              </View>
+            </Pressable>
 
-        <View style={styles.memoryList}>
-          <View
-            style={[
-              styles.memoryCard,
-              {
-                backgroundColor: colors.backgroundElement,
-                borderColor: colors.backgroundSelected,
-              },
-            ]}
+            <Pressable
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+              onPress={() => setActivePicker("voice")}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: colors.text }]}
+                >
+                  Voice
+                </Text>
+                <Text
+                  style={[styles.agentValue, { color: colors.textSecondary }]}
+                >
+                  {agentVoice.charAt(0).toUpperCase() + agentVoice.slice(1)}
+                </Text>
+                <Text style={[styles.chevron, { color: colors.textSecondary }]}>
+                  ›
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+              onPress={() => setActivePicker("behavior")}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: colors.text }]}
+                >
+                  Behavior
+                </Text>
+                <Text
+                  style={[styles.agentValue, { color: colors.textSecondary }]}
+                >
+                  {agentBehavior.charAt(0).toUpperCase() +
+                    agentBehavior.slice(1)}
+                </Text>
+                <Text style={[styles.chevron, { color: colors.textSecondary }]}>
+                  ›
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.sectionLabel}
           >
-            <View style={styles.memoryRow}>
-              <Text style={[styles.memoryOptionLabel, { color: colors.text }]}>
-                Reference personal information
-              </Text>
-              <Switch
-                value={refPersonalInfo}
-                onValueChange={setRefPersonalInfo}
-                trackColor={{
-                  false: colors.backgroundSelected,
-                  true: colors.wave,
-                }}
-                thumbColor={colors.background}
-              />
+            MEMORY
+          </ThemedText>
+
+          <View style={styles.memoryList}>
+            <View
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: colors.text }]}
+                >
+                  Reference personal information
+                </Text>
+                <Switch
+                  value={refPersonalInfo}
+                  onValueChange={setRefPersonalInfo}
+                  trackColor={{
+                    false: colors.backgroundSelected,
+                    true: colors.wave,
+                  }}
+                  thumbColor={colors.background}
+                />
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: colors.text }]}
+                >
+                  Reference chat history
+                </Text>
+                <Switch
+                  value={refChatHistory}
+                  onValueChange={setRefChatHistory}
+                  trackColor={{
+                    false: colors.backgroundSelected,
+                    true: colors.wave,
+                  }}
+                  thumbColor={colors.background}
+                />
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.memoryCard,
+                {
+                  backgroundColor: colors.backgroundElement,
+                  borderColor: colors.backgroundSelected,
+                },
+              ]}
+            >
+              <View style={styles.memoryRow}>
+                <Text
+                  style={[styles.memoryOptionLabel, { color: "colors.text" }]}
+                >
+                  Clear chat history
+                </Text>
+                <Pressable
+                  style={[styles.clearButton, { backgroundColor: "#EF4444" }]}
+                >
+                  <Text style={styles.clearButtonText}>Clear</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
 
-          <View
-            style={[
-              styles.memoryCard,
-              {
-                backgroundColor: colors.backgroundElement,
-                borderColor: colors.backgroundSelected,
-              },
-            ]}
-          >
-            <View style={styles.memoryRow}>
-              <Text style={[styles.memoryOptionLabel, { color: colors.text }]}>
-                Reference chat history
-              </Text>
-              <Switch
-                value={refChatHistory}
-                onValueChange={setRefChatHistory}
-                trackColor={{
-                  false: colors.backgroundSelected,
-                  true: colors.wave,
-                }}
-                thumbColor={colors.background}
-              />
-            </View>
-          </View>
-        </View>
-
-        <Pressable onPress={signOut} style={styles.signOut}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Sign out
-          </ThemedText>
-        </Pressable>
+          <Pressable onPress={signOut} style={styles.signOut}>
+            <Text style={styles.signOutText}>Sign out</Text>
+          </Pressable>
+        </ScrollView>
       </SafeAreaView>
 
       <EditProfileSheet
         visible={editSheetOpen}
         onClose={() => setEditSheetOpen(false)}
+      />
+
+      <PickerSheet
+        visible={activePicker === "tone"}
+        title="Tone"
+        selected={agentTone}
+        onSelect={(v) => setAgentTone(v as typeof agentTone)}
+        onClose={() => setActivePicker(null)}
+        options={[
+          {
+            value: "casual",
+            label: "Casual",
+            description: "Relaxed and conversational",
+          },
+          {
+            value: "balanced",
+            label: "Balanced",
+            description: "Neutral and adaptable",
+          },
+          {
+            value: "formal",
+            label: "Formal",
+            description: "Professional and precise",
+          },
+        ]}
+      />
+
+      <PickerSheet
+        visible={activePicker === "voice"}
+        title="Voice"
+        selected={agentVoice}
+        onSelect={(v) => setAgentVoice(v as typeof agentVoice)}
+        onClose={() => setActivePicker(null)}
+        options={[
+          {
+            value: "concise",
+            label: "Concise",
+            description: "Short, direct responses",
+          },
+          {
+            value: "balanced",
+            label: "Balanced",
+            description: "Moderate level of detail",
+          },
+          {
+            value: "detailed",
+            label: "Detailed",
+            description: "Thorough and in-depth",
+          },
+        ]}
+      />
+
+      <PickerSheet
+        visible={activePicker === "behavior"}
+        title="Behavior"
+        selected={agentBehavior}
+        onSelect={(v) => setAgentBehavior(v as typeof agentBehavior)}
+        onClose={() => setActivePicker(null)}
+        options={[
+          {
+            value: "focused",
+            label: "Focused",
+            description: "Stays strictly on topic",
+          },
+          {
+            value: "balanced",
+            label: "Balanced",
+            description: "Mixes accuracy with creativity",
+          },
+          {
+            value: "creative",
+            label: "Creative",
+            description: "Exploratory and imaginative",
+          },
+        ]}
       />
     </ThemedView>
   );
@@ -477,8 +697,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "400",
   },
+  agentValue: {
+    fontSize: 14,
+  },
+  chevron: {
+    fontSize: 18,
+    fontWeight: "300",
+  },
+  clearButton: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: 8,
+  },
+  clearButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  flex: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.six,
+  },
   signOut: {
-    marginTop: "auto",
-    paddingBottom: Spacing.four,
+    marginTop: Spacing.five,
+    alignItems: "center",
+  },
+  signOutText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#EF4444",
   },
 });
